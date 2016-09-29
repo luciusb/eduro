@@ -220,7 +220,7 @@ class EduroMaxiReader:
                     self.lastcable=self.robot.startCableIn
             else:
                 break
-        return time, self.robot.localisation.pose(), self.received
+        return time, Position(*self.robot.localisation.pose()), self.received
 
     def __iter__(self):
         return self
