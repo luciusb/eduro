@@ -10,11 +10,8 @@ from __future__ import absolute_import, division, print_function, unicode_litera
 """
 
 from socket import socket, AF_INET, SOCK_STREAM
-from time import sleep
 from collections import namedtuple
-from itertools import groupby
-
-from threading import Thread, Event, Lock 
+from threading import Thread, Event
 
 STX = chr(2)
 ETX = chr(3)
@@ -24,7 +21,7 @@ PORT = 2111
 
 
 scan_complete_nt=namedtuple('scan_complete',('idlen', 'id', 'antena', 'RSSI1', 'RSSI2', 'RSSI3', 'RSSI4', 'power1', 'power2', 'power3', 'power4'))
-scan_nt=namedtuple('scan',('id', 'RSSI', 'power'))
+scan_nt=namedtuple('scan_nt',('id', 'RSSI', 'power'))
 
 class RFU620():
     def __init__( self, host, port, verbose=False):
@@ -119,14 +116,14 @@ class RFU620Reader(Thread):
     def __init__(self):
         Thread.__init__(self)
         self.shouldIRun = Event()
-        self.shouldIRun.set() 
+        self.shouldIRun.set()
         self.rf = RFU620(HOST, PORT, verbose=False)
         self.rf.setpower(240)
         self.index = 1
         self._data = None
 
     def run(self):
-        while self.shouldIRun.isSet(): 
+        while self.shouldIRun.isSet():
             samples = self.rf.scan()
             self._data = (self.index, samples)
             self.index += 1
@@ -135,50 +132,17 @@ class RFU620Reader(Thread):
         return self._data
 
     def requestStop(self):
-        self.shouldIRun.clear() 
+        self.shouldIRun.clear()
 
-
-from math import log
 if __name__ == "__main__":
     rf=RFU620(HOST, PORT, verbose=True)
     rf.setpower(240)
     with open("rfid-scan.txt", 'w') as f:
-        while True:
-            samples = rf.scan()
-            f.write(repr(samples) + '\n')
-            if samples:
-                print('; '.join(['{s.id:X} {s.RSSI:4.1f}'.format(s=s) for s in samples]))
-
-
-    #rf.readPowerConfig()
-    """
-    for power in (30,100, 230,231, 240, 241):
-        try:
-            rf.setpower(power)
-            print("Set %i power"%power)
-        except AssertionError:
-            print("%i power is not allowed"%power)
-    """
-
-    rf.setpower(150)
-    di=33.
-    while True:
-        for power in (240,):#(50,100, 150, 200, 240):
-            rf.setpower(power)
-            print('power=%.1f, '%(power/10.), end='')
+        f.write(";".join(("distance[cm]", "try", "id", "RSSI", "counted"))+'\n')
+        for dist in 0,10,20,30,40,50,60,70:
+            raw_input("put the tag %i cm from the projection of reader on the ground and press enter"%dist)
             samples=[]
-            for i in range(10):
-                samples+=rf.scan()
-                print('.', end='')
-            if not samples:
-                print('')
-                continue
-            samples.sort(key=lambda x:x.id)
-            for id, groups in groupby(samples, key=lambda x:x.id):
-                ids, rssis, powers=zip(*groups)
-                rssi=sum(rssis)/len(rssis)
-                power=powers[0]
-                n=(-rssi-power)/log(di,10)/10.
-                print("%X, r=%4.1f, d=%.2fm, n=%.2f; "%(id, rssi, distance(rssi, power), n), end='')
-            print('')
-            sleep(0.2)
+            for i in range(100):
+                for scan in rf.scan():
+                    f.write("%i;%i;%s;%.1f;%.3f\n"%(distance,i, hex(scan.id), scan.RSSI, distance(rssi, power)))
+
